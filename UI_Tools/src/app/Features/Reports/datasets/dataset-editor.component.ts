@@ -7,6 +7,8 @@ import { ReportsService } from '../shared/reports.service';
 import { CellValue, ColumnType, DatasetColumn, DatasetRow, DatasetSourceType } from '../shared/report.models';
 import { DATASET_LIMITS, formatCell, nextColumnKey, normalizeCell, parseNumber } from '../shared/data.util';
 import { ParsedSheet, matrixToDataset, parseDataFile } from '../shared/import.util';
+import { FishboneDataEditorComponent } from '../charts/fishbone/fishbone-data-editor.component';
+import { defaultFishboneConfig } from '../charts/fishbone/fishbone.model';
 
 interface DatasetTemplate {
   id: string;
@@ -62,7 +64,7 @@ const TEMPLATES: DatasetTemplate[] = [
 @Component({
   selector: 'app-dataset-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, FishboneDataEditorComponent],
   templateUrl: './dataset-editor.component.html',
 })
 export class DatasetEditorComponent implements OnInit {
@@ -107,6 +109,12 @@ export class DatasetEditorComponent implements OnInit {
   rows: DatasetRow[] = [];
   page = 1;
 
+  // fishbone card view — same rows, shown as category cards
+  view: 'grid' | 'fishbone' = 'grid';
+  fbCategory = '';
+  fbCause = '';
+  fbCount = '';
+
   ngOnInit() {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     if (id) {
@@ -129,6 +137,9 @@ export class DatasetEditorComponent implements OnInit {
         this.columns = JSON.parse(dataset.Columns_Json || '[]');
         this.rows = JSON.parse(dataset.Rows_Json || '[]');
         this.mode = 'grid';
+        // datasets that look like fishbone data open straight in the card view
+        const names = this.columns.map((c) => c.name.toLowerCase());
+        if (names.some((n) => n.includes('category')) && names.some((n) => n.includes('cause'))) this.setView('fishbone');
       },
       error: () => {
         this.loading = false;
@@ -147,6 +158,7 @@ export class DatasetEditorComponent implements OnInit {
     this.page = 1;
     this.mode = 'grid';
     this.dirty = true;
+    this.setView(template.id === 'fishbone' ? 'fishbone' : 'grid');
   }
 
   async onFileSelected(event: Event) {
@@ -234,6 +246,27 @@ export class DatasetEditorComponent implements OnInit {
     fileInput.click();
   }
   //********************************************** Start Options End **********************************************//
+
+  //********************************************** Fishbone View Start **********************************************//
+  setView(view: 'grid' | 'fishbone') {
+    if (view === 'fishbone') {
+      if (this.columns.length < 2) {
+        this.toastService.showWarning('Fishbone view', 'Add at least two columns: one for categories and one for causes.');
+        return;
+      }
+      const exists = (key: string) => this.columns.some((c) => c.key === key);
+      const defaults = defaultFishboneConfig(this.columns);
+      if (!exists(this.fbCategory)) this.fbCategory = defaults.categoryColumn;
+      if (!exists(this.fbCause) || this.fbCause === this.fbCategory) this.fbCause = defaults.causeColumn;
+      if (!this.numericColumns.some((c) => c.key === this.fbCount)) this.fbCount = defaults.countColumn;
+    }
+    this.view = view;
+  }
+
+  get numericColumns(): DatasetColumn[] {
+    return this.columns.filter((c) => c.type === 'number');
+  }
+  //********************************************** Fishbone View End **********************************************//
 
   //********************************************** Grid Editing Start **********************************************//
   get totalPages(): number {
@@ -374,7 +407,9 @@ export class DatasetEditorComponent implements OnInit {
         columns.forEach((c) => (row[c.key] = normalizeCell(r[c.key], c.type)));
         return row;
       })
-      .filter((r) => columns.some((c) => r[c.key] !== null));
+      .filter((r) => columns.some((c) => r[c.key] !== null))
+      // in the card view a category without causes is only a placeholder — don't store it
+      .filter((r) => this.view !== 'fishbone' || r[this.fbCause] !== null);
 
     if (!rows.length) {
       this.toastService.showWarning('Check your data', 'Enter at least one row of data.', 3500);

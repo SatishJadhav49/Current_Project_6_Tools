@@ -115,7 +115,38 @@
   </aside>
 
   <!-- ************************************ Diagram ************************************ -->
-  <section class="min-w-0 flex-1">
+  <section class="min-w-0 flex-1 space-y-4">
+    <!-- Toolbar: card editor toggle (same idea as the POC "Edit Data") -->
+    @if (canEditData && mappingReady) {
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-xs text-slate-500">
+          @if (showDataEditor) {
+            Changes update the dataset and every report built on it once you click Save.
+          } @else {
+            Add, rename or remove categories and causes right here. Categories without causes are not saved.
+          }
+        </p>
+        <button type="button" (click)="showDataEditor = !showDataEditor"
+                class="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold"
+                [ngClass]="showDataEditor ? 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50' : 'bg-slate-800 text-white hover:bg-slate-700'">
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />
+          </svg>
+          {{ showDataEditor ? 'Close Editor' : 'Edit Data' }}
+        </button>
+      </div>
+    }
+
+    @if (showDataEditor && canEditData && mappingReady) {
+      @if (filtersActive) {
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+          Report filters are active — the editor shows all rows, but causes hidden by a filter won't appear on the diagram.
+        </div>
+      }
+      <app-fishbone-data-editor [columns]="columns" [rows]="dataRows" [categoryKey]="cfg.categoryColumn" [causeKey]="cfg.causeColumn"
+                                [countKey]="cfg.countColumn" [maxCategories]="limits.MAX_CATEGORIES" (changed)="dataChange.emit()" />
+    }
+
     @if (!mappingReady) {
       <div class="flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
         <p class="text-sm font-semibold text-slate-700">Map your columns to draw the fishbone</p>

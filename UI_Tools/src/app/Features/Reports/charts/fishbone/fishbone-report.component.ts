@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DatasetColumn, DatasetRow } from '../../shared/report.models';
 import { ExportTable, ReportChart } from '../../shared/chart-registry';
 import { FishboneDiagramComponent } from './fishbone-diagram.component';
+import { FishboneDataEditorComponent } from './fishbone-data-editor.component';
 import {
   FISHBONE_LIMITS,
   FishboneBuildResult,
@@ -16,7 +17,7 @@ import {
 @Component({
   selector: 'app-fishbone-report',
   standalone: true,
-  imports: [CommonModule, FormsModule, FishboneDiagramComponent],
+  imports: [CommonModule, FormsModule, FishboneDiagramComponent, FishboneDataEditorComponent],
   templateUrl: './fishbone-report.component.html',
 })
 export class FishboneReportComponent implements ReportChart<FishboneConfig>, OnChanges {
@@ -24,7 +25,14 @@ export class FishboneReportComponent implements ReportChart<FishboneConfig>, OnC
   @Input() rows: DatasetRow[] = [];
   @Input() config!: FishboneConfig;
   @Input() readonly = false;
+  /** All dataset rows (not filtered) for the card editor — mutated in place */
+  @Input() dataRows: DatasetRow[] = [];
+  @Input() canEditData = false;
+  @Input() filtersActive = false;
   @Output() configChange = new EventEmitter<FishboneConfig>();
+  @Output() dataChange = new EventEmitter<void>();
+
+  showDataEditor = false;
 
   @ViewChild(FishboneDiagramComponent) private diagram?: FishboneDiagramComponent;
 

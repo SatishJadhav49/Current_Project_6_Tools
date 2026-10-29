@@ -19,6 +19,12 @@ export interface ReportChart<TConfig = any> {
 
   /** Optional chart-specific tables added to Excel / PDF exports (e.g. categories + causes) */
   getExportTables?(): ExportTable[];
+
+  /**
+   * Optional in-place data entry (e.g. Fishbone category cards). When the chart has it, the builder
+   * passes every dataset row (unfiltered) and saves the dataset when dataChange fires.
+   */
+  dataChange?: EventEmitter<void>;
 }
 
 export interface ExportTable {

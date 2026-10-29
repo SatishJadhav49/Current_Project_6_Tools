@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, of, switchMap } from 'rxjs';
 import { ConfirmationService, ToastService } from '../../../services';
 import { ReportsService } from '../shared/reports.service';
 import { DatasetColumn, DatasetRow, ReportConfig, ReportDetail, ReportFilter } from '../shared/report.models';
@@ -47,6 +47,7 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
   @ViewChild('chartHost', { read: ViewContainerRef, static: true }) private chartHost!: ViewContainerRef;
   private chartRef: ComponentRef<ReportChart> | null = null;
   private chartSub?: Subscription;
+  private dataSub?: Subscription;
 
   report: ReportDetail | null = null;
   chartDef: ChartDefinition | undefined;
@@ -63,6 +64,7 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
   chartLoading = false;
   saving = false;
   dirty = false;
+  dataDirty = false; // rows were changed through the chart's data editor
   exporting: ExportFormat | null = null;
   showExportMenu = false;
   showShare = false;
@@ -100,6 +102,7 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.chartSub?.unsubscribe();
+    this.dataSub?.unsubscribe();
     this.chartRef?.destroy();
   }
 
@@ -135,6 +138,21 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
       this.chartConfig = config;
       this.markDirty();
     });
+
+    // charts with in-place data entry edit the dataset rows directly (owner only — datasets are private)
+    const dataChange = this.chartRef.instance.dataChange;
+    if (dataChange) {
+      this.chartRef.setInput('dataRows', this.rows);
+      this.chartRef.setInput('canEditData', this.isOwner);
+      this.chartRef.setInput('filtersActive', this.filters.length > 0);
+      this.dataSub = dataChange.subscribe(() => {
+        this.dataDirty = true;
+        this.markDirty();
+        // always a new array: rows were edited in place, so the chart / table must see a new reference
+        this.filteredRows = [...applyFilters(this.rows, this.columns, this.filters)];
+        this.chartRef?.setInput('rows', this.filteredRows);
+      });
+    }
     this.chartLoading = false;
   }
   //********************************************** Chart Host End **********************************************//
@@ -177,6 +195,7 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
   applyFilterChange() {
     this.filteredRows = applyFilters(this.rows, this.columns, this.filters);
     this.chartRef?.setInput('rows', this.filteredRows);
+    if (this.chartRef?.instance.dataChange) this.chartRef.setInput('filtersActive', this.filters.length > 0);
     if (this.canEdit) this.markDirty();
   }
 
@@ -200,25 +219,53 @@ export class ReportBuilderComponent implements OnInit, OnDestroy {
       return;
     }
     const config: ReportConfig = { filters: this.filters, chart: this.chartConfig };
+    const report = this.report;
     this.saving = true;
-    this.reportsService
-      .updateReport(this.report.Report_ID, {
-        Report_Name: this.reportName.trim(),
-        Description: this.description.trim(),
-        Config_Json: JSON.stringify(config),
-        Employee_ID: this.reportsService.employeeId,
-        Host: this.reportsService.host,
-      })
-      .subscribe({
-        next: (id) => {
-          this.saving = false;
-          if (!id) return;
-          this.dirty = false;
-          this.report!.Report_Name = this.reportName.trim();
-          this.toastService.showSuccess('Report saved', this.reportName.trim());
-        },
-        error: () => (this.saving = false),
-      });
+
+    const saveReport$ = this.reportsService.updateReport(report.Report_ID, {
+      Report_Name: this.reportName.trim(),
+      Description: this.description.trim(),
+      Config_Json: JSON.stringify(config),
+      Employee_ID: this.reportsService.employeeId,
+      Host: this.reportsService.host,
+    });
+
+    // data edited in the chart → save the dataset first (keeping its name / source), then the report
+    const request$ = this.dataDirty
+      ? this.reportsService.getDatasetById(report.Dataset_ID).pipe(
+          switchMap((dataset) =>
+            this.reportsService.updateDataset(report.Dataset_ID, {
+              Dataset_Name: dataset.Dataset_Name,
+              Description: dataset.Description,
+              Source_Type: dataset.Source_Type,
+              Source_File_Name: dataset.Source_File_Name || null,
+              Columns_Json: JSON.stringify(this.columns),
+              Rows_Json: JSON.stringify(this.cleanRows()),
+              Employee_ID: this.reportsService.employeeId,
+              Plant_ID: this.reportsService.plantId,
+              Host: this.reportsService.host,
+            })
+          ),
+          switchMap((datasetId) => (datasetId ? saveReport$ : of(null)))
+        )
+      : saveReport$;
+
+    request$.subscribe({
+      next: (id) => {
+        this.saving = false;
+        if (!id) return;
+        this.dirty = false;
+        this.dataDirty = false;
+        report.Report_Name = this.reportName.trim();
+        this.toastService.showSuccess('Report saved', this.reportName.trim());
+      },
+      error: () => (this.saving = false),
+    });
+  }
+
+  /** Drop rows the data editor left without any value */
+  private cleanRows(): DatasetRow[] {
+    return this.rows.filter((r) => this.columns.some((c) => r[c.key] !== null && r[c.key] !== undefined && `${r[c.key]}`.trim() !== ''));
   }
 
   /** Used by the route guard and the browser close warning */
