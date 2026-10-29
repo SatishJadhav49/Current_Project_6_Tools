@@ -70,6 +70,10 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     slug: 'boxplot',
     icon: 'M12 3v4M12 17v4M7 7h10v10H7zM7 12h10M9 3h6M9 21h6',
     color: '#2563eb',
+    loadComponent: () =>
+      import('../charts/boxplot/boxplot-report.component').then((m) => m.BoxPlotReportComponent),
+    defaultConfig: (columns) =>
+      import('../charts/boxplot/boxplot.model').then((m) => m.defaultBoxPlotConfig(columns)),
   },
   {
     code: 'PARETO',
