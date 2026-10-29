@@ -1,0 +1,27 @@
+<div class="flex h-screen bg-slate-100">
+
+  <!-- Sidebar -->
+  <aside class="flex w-60 shrink-0 flex-col bg-slate-900">
+    <div class="flex items-center gap-3 px-5 py-5">
+      <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-lg font-black text-white">Q</div>
+      <div>
+        <div class="text-sm font-bold text-white">Quality Tools</div>
+        <div class="text-[11px] text-slate-400">Analysis Suite</div>
+      </div>
+    </div>
+    <nav class="mt-2 flex-1 space-y-1 px-3">
+      <a *ngFor="let item of menuItems"
+         [routerLink]="item.path"
+         routerLinkActive="!bg-blue-600 !text-white"
+         class="block rounded-lg px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white">
+        {{ item.label }}
+      </a>
+    </nav>
+    <div class="px-5 py-4 text-[11px] text-slate-500">v1.0 &middot; data stored locally</div>
+  </aside>
+
+  <!-- Content -->
+  <main class="min-w-0 flex-1 overflow-y-auto">
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,208 @@
+<div class="min-h-full bg-slate-100 p-4 md:p-6">
+  <div class="mx-auto max-w-[1520px]">
+
+    <!-- Header -->
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+      <div>
+        <h1 class="text-xl font-bold text-slate-800">
+          Box Plot
+          <span class="ml-1 text-sm font-medium text-slate-400">(Quartile &amp; Outlier Analysis)</span>
+        </h1>
+        <p class="mt-0.5 text-sm text-slate-500">{{ state.title }} &middot; Grouping: {{ effectiveGrouping }}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <select [(ngModel)]="state.mode" (ngModelChange)="onModeChange()"
+                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 focus:border-blue-500 focus:outline-none">
+          <option value="auto">Auto Grouping</option>
+          <option value="category">By Category</option>
+          <option value="month">Monthly</option>
+          <option value="quarter">Quarterly</option>
+          <option value="year">Yearly</option>
+        </select>
+        <button (click)="openModal()"
+                class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700">
+          + Add / Edit Data
+        </button>
+        <button (click)="downloadPng()" title="Download the chart as PNG image"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          &#8681; PNG
+        </button>
+        <button (click)="downloadPdf()" title="Print / save the chart as PDF"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          &#8681; PDF
+        </button>
+        <button (click)="resetToDemo()" title="Clear saved data and restore the demo"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          Reset Demo
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="notice" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">
+      {{ notice }}
+    </div>
+    <div *ngIf="truncatedGroups" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">
+      Showing first {{ MAX_GROUPS }} groups; {{ truncatedGroups }} more were hidden. Choose a coarser grouping.
+    </div>
+
+    <!-- Chart (Apache ECharts) -->
+    <div class="rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:p-4">
+      <div class="relative">
+        <div #chartEl class="h-[520px] w-full"></div>
+        <div *ngIf="!groupStats.length"
+             class="absolute inset-0 flex items-center justify-center text-sm text-slate-400">
+          No data yet — click <b class="mx-1">+ Add / Edit Data</b> to enter values or upload a CSV / Excel file.
+        </div>
+      </div>
+
+      <!-- symbol legend -->
+      <div *ngIf="groupStats.length" class="mt-2 flex flex-wrap items-center gap-5 border-t border-slate-100 px-2 pt-3 pb-1 text-[11px] text-slate-500">
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-0.5 w-5 bg-blue-600"></span> Median</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rotate-45 bg-slate-700"></span> Mean</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full border-2 border-red-600 bg-white"></span> Outlier (beyond 1.5&times;IQR)</span>
+        <span class="ml-auto">Hover any box for exact values &middot; {{ state.rows.length }} data points</span>
+      </div>
+    </div>
+
+    <!-- Stats table -->
+    <div *ngIf="groupStats.length" class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+          <tr>
+            <th class="px-4 py-2.5">Group</th>
+            <th class="px-4 py-2.5 text-right">N</th>
+            <th class="px-4 py-2.5 text-right">Min</th>
+            <th class="px-4 py-2.5 text-right">Q1</th>
+            <th class="px-4 py-2.5 text-right">Median</th>
+            <th class="px-4 py-2.5 text-right">Q3</th>
+            <th class="px-4 py-2.5 text-right">Max</th>
+            <th class="px-4 py-2.5 text-right">Mean</th>
+            <th class="px-4 py-2.5">Outliers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let g of groupStats; let i = index" class="border-t border-slate-100 text-slate-600">
+            <td class="px-4 py-2 font-semibold" [style.color]="colorOf(i)">{{ g.name }}</td>
+            <td class="px-4 py-2 text-right">{{ g.n }}</td>
+            <td class="px-4 py-2 text-right">{{ fmtNum(g.min) }}</td>
+            <td class="px-4 py-2 text-right">{{ fmtNum(g.q1) }}</td>
+            <td class="px-4 py-2 text-right font-bold">{{ fmtNum(g.median) }}</td>
+            <td class="px-4 py-2 text-right">{{ fmtNum(g.q3) }}</td>
+            <td class="px-4 py-2 text-right">{{ fmtNum(g.max) }}</td>
+            <td class="px-4 py-2 text-right">{{ fmtNum(g.mean) }}</td>
+            <td class="px-4 py-2 text-red-600">
+              {{ g.outliers.length ? g.outliers.slice(0, 6).join(', ') : '—' }}
+              <span *ngIf="g.outliers.length > 6" class="text-slate-400">+{{ g.outliers.length - 6 }} more</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Data popup -->
+<div *ngIf="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+  <div class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-2xl">
+
+    <div class="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+      <h2 class="text-sm font-bold text-slate-800">Box Plot Data</h2>
+      <button (click)="showModal = false" class="rounded px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">&#10005;</button>
+    </div>
+
+    <!-- tabs -->
+    <div class="flex gap-1 border-b border-slate-200 px-5 pt-3">
+      <button (click)="modalTab = 'manual'"
+              class="rounded-t-lg px-4 py-2 text-xs font-semibold"
+              [class.bg-blue-600]="modalTab === 'manual'" [class.text-white]="modalTab === 'manual'"
+              [class.text-slate-500]="modalTab !== 'manual'" [class.hover:bg-slate-100]="modalTab !== 'manual'">
+        Manual Entry
+      </button>
+      <button (click)="modalTab = 'upload'"
+              class="rounded-t-lg px-4 py-2 text-xs font-semibold"
+              [class.bg-blue-600]="modalTab === 'upload'" [class.text-white]="modalTab === 'upload'"
+              [class.text-slate-500]="modalTab !== 'upload'" [class.hover:bg-slate-100]="modalTab !== 'upload'">
+        Upload CSV / Excel
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-5">
+
+      <!-- Manual entry tab -->
+      <div *ngIf="modalTab === 'manual'">
+        <label class="mb-1 block text-xs font-semibold text-slate-500">Chart Title</label>
+        <input [(ngModel)]="editTitle" maxlength="80"
+               class="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+
+        <div class="mb-2 flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-500">
+            Data Rows ({{ editRows.length }}) &mdash; tip: copy 2 columns in Excel and paste here directly
+          </span>
+          <div class="flex gap-2">
+            <button (click)="addEditRow()" class="rounded bg-emerald-600 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-700">+ Row</button>
+            <button (click)="clearEditRows()" class="rounded border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50">Clear All</button>
+          </div>
+        </div>
+
+        <div (paste)="onGridPaste($event)" class="rounded-lg border border-slate-200">
+          <div class="grid grid-cols-[1fr_1fr_36px] gap-0 border-b border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <span>Category / Date</span><span>Value</span><span></span>
+          </div>
+          <div class="max-h-72 overflow-y-auto p-2">
+            <div *ngFor="let r of editRows; let i = index" class="mb-1.5 grid grid-cols-[1fr_1fr_36px] items-center gap-1.5">
+              <input [(ngModel)]="r.label" placeholder="e.g. 2026-01-15 or Line-A"
+                     class="rounded border border-slate-200 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none" />
+              <input [(ngModel)]="r.value" (keyup.enter)="addEditRow()" placeholder="e.g. 420.5" inputmode="decimal"
+                     class="rounded border border-slate-200 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none" />
+              <button (click)="removeEditRow(i)" title="Remove row"
+                      class="rounded px-1 py-1 text-slate-300 hover:bg-red-50 hover:text-red-500">&#10005;</button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-400">
+          Dates accepted as 2026-01-15, 15/01/2026, 15-Jan-2026, Jan-2026. Plain text = category (one box per category).
+        </p>
+      </div>
+
+      <!-- Upload tab -->
+      <div *ngIf="modalTab === 'upload'">
+        <label class="block cursor-pointer rounded-lg border-2 border-dashed border-slate-300 px-6 py-8 text-center hover:border-blue-400 hover:bg-blue-50/40">
+          <input type="file" accept=".csv,.xlsx,.xls" (change)="onFileSelected($event)" class="hidden" />
+          <div class="text-sm font-semibold text-slate-600">Click to choose a CSV or Excel file</div>
+          <div class="mt-1 text-xs text-slate-400">2 columns: Category/Date and Value. First row may be a header.</div>
+        </label>
+
+        <div *ngIf="uploadPreview" class="mt-4">
+          <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-xs font-semibold text-slate-600">
+              {{ uploadPreview.fileName }} &mdash; {{ uploadPreview.rows.length }} valid rows
+              <span *ngIf="uploadPreview.skipped" class="text-amber-600">({{ uploadPreview.skipped }} skipped)</span>
+            </span>
+            <div class="flex gap-3 text-xs text-slate-600">
+              <label class="inline-flex items-center gap-1"><input type="radio" [(ngModel)]="uploadMode" value="replace" /> Replace existing</label>
+              <label class="inline-flex items-center gap-1"><input type="radio" [(ngModel)]="uploadMode" value="append" /> Append</label>
+            </div>
+          </div>
+          <table class="w-full rounded border border-slate-200 text-left text-xs">
+            <thead class="bg-slate-50 text-[11px] text-slate-500"><tr><th class="px-3 py-1.5">Category / Date</th><th class="px-3 py-1.5 text-right">Value</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let r of uploadPreview.rows.slice(0, 8)" class="border-t border-slate-100 text-slate-600">
+                <td class="px-3 py-1">{{ r.label }}</td><td class="px-3 py-1 text-right">{{ r.value }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p *ngIf="uploadPreview.rows.length > 8" class="mt-1 text-[11px] text-slate-400">&hellip; and {{ uploadPreview.rows.length - 8 }} more rows</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
+      <button (click)="showModal = false"
+              class="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+      <button *ngIf="modalTab === 'manual'" (click)="applyManual()"
+              class="rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700">Apply</button>
+      <button *ngIf="modalTab === 'upload'" (click)="applyUpload()" [disabled]="!uploadPreview?.rows?.length"
+              class="rounded-lg bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300">Apply</button>
+    </div>
+  </div>
+</div>

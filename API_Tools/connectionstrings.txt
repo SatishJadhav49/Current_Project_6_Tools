@@ -1,0 +1,10 @@
+
+
+Nashik - A003
+
+ "SystemSettings": {
+    "BaseUrl": "https://dronanskpq.mahindra.com/PQMCAR/Portal",
+    "ReportURL": "https://mmnsk1drsv.corp.mahindra.com/DronaRep/reportserver?/PQ Dashboard/MCAR/MCARReport&rs:Command=Render&rs:Format=PDF&Concern_ID="
+  },
+
+"DefaultConnection": "Server=10.3.48.51;Database=PQ_Quality_Tools;User Id=DRONAADMIN;Password=admin#123;Integrated Security=False;Trusted_Connection=false;MultipleActiveResultSets=true;TrustServerCertificate=True",

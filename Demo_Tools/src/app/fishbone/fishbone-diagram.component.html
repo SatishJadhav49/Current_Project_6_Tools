@@ -1,0 +1,149 @@
+<div class="min-h-full bg-slate-100 p-4 md:p-6">
+  <div class="mx-auto max-w-[1520px]">
+
+    <!-- Header + legend -->
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+      <div>
+        <h1 class="text-xl font-bold text-slate-800">
+          Fishbone Diagram
+          <span class="ml-1 text-sm font-medium text-slate-400">(Ishikawa &mdash; Root Cause Analysis)</span>
+        </h1>
+        <p class="mt-0.5 text-sm text-slate-500">Problem : {{ data.problem }}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- <span *ngFor="let b of bones"
+              class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+              [style.background]="b.color">
+          {{ b.name }}
+          <span class="rounded-full bg-white/25 px-1.5 text-[10px] leading-4">{{ b.causes.length }}</span>
+        </span> -->
+        <button (click)="downloadPng()" title="Download the diagram as PNG image"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          &#8681; PNG
+        </button>
+        <button (click)="downloadPdf()" title="Print / save the diagram as PDF"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          &#8681; PDF
+        </button>
+        <button (click)="showEditor = !showEditor"
+                class="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700">
+          {{ showEditor ? 'Close Editor' : 'Edit Data' }}
+        </button>
+        <button (click)="resetToDemo()" title="Clear saved data and restore the demo"
+                class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          Reset Demo
+        </button>
+      </div>
+    </div>
+
+    <!-- Data editor (saved to localStorage, no API) -->
+    <div *ngIf="showEditor" class="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-4 flex flex-wrap items-end gap-3">
+        <div class="min-w-[280px] flex-1">
+          <label class="mb-1 block text-xs font-semibold text-slate-500">Problem / Effect (fish head)</label>
+          <input [(ngModel)]="problemText" (keyup.enter)="updateProblem()" maxlength="80"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+        </div>
+        <button (click)="updateProblem()"
+                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Update</button>
+        <div class="min-w-[240px]">
+          <label class="mb-1 block text-xs font-semibold text-slate-500">
+            New Category ({{ data.categories.length }}/{{ MAX_CATEGORIES }})
+          </label>
+          <div class="flex gap-2">
+            <input [(ngModel)]="newCategoryName" (keyup.enter)="addCategory()" maxlength="20"
+                   [disabled]="data.categories.length >= MAX_CATEGORIES"
+                   placeholder="e.g. Management"
+                   class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-100" />
+            <button (click)="addCategory()"
+                    [disabled]="data.categories.length >= MAX_CATEGORIES"
+                    class="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">
+              + Add
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div *ngFor="let cat of data.categories; let i = index" class="rounded-lg border border-slate-200">
+          <div class="flex items-center justify-between rounded-t-lg px-3 py-2" [style.background]="colorOf(i)">
+            <span class="text-sm font-bold text-white">
+              {{ cat.name }}
+              <span class="ml-1 text-xs font-medium text-white/70">{{ cat.causes.length }}/{{ MAX_CAUSES_PER_CATEGORY }}</span>
+            </span>
+            <button (click)="removeCategory(i)" title="Remove category"
+                    class="rounded px-1.5 text-white/80 hover:bg-white/20 hover:text-white">&#10005;</button>
+          </div>
+          <ul class="max-h-44 overflow-y-auto px-3 py-2">
+            <li *ngFor="let cause of cat.causes; let j = index"
+                class="flex items-center justify-between gap-2 border-b border-slate-100 py-1 text-xs text-slate-600 last:border-0">
+              <span class="truncate" [title]="cause">{{ cause }}</span>
+              <button (click)="removeCause(i, j)" title="Remove cause"
+                      class="shrink-0 rounded px-1 text-slate-300 hover:bg-red-50 hover:text-red-500">&#10005;</button>
+            </li>
+            <li *ngIf="!cat.causes.length" class="py-1 text-xs italic text-slate-400">No causes yet</li>
+          </ul>
+          <div class="flex gap-1.5 border-t border-slate-100 p-2">
+            <input [(ngModel)]="newCauseText[i]" (keyup.enter)="addCause(i)" maxlength="80"
+                   [disabled]="cat.causes.length >= MAX_CAUSES_PER_CATEGORY"
+                   placeholder="Add cause..."
+                   class="w-full rounded border border-slate-200 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none disabled:bg-slate-100" />
+            <button (click)="addCause(i)"
+                    [disabled]="cat.causes.length >= MAX_CAUSES_PER_CATEGORY"
+                    class="shrink-0 rounded bg-slate-800 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-700 disabled:bg-slate-300">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagram -->
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:p-4">
+      <svg #fishboneSvg [attr.viewBox]="viewBox" class="h-auto w-full min-w-[1000px]" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- Spine -->
+        <line [attr.x1]="spineX1" [attr.y1]="spineY" [attr.x2]="spineX2" [attr.y2]="spineY"
+              stroke="#334155" stroke-width="5" stroke-linecap="round" />
+
+        <!-- Tail -->
+        <polygon [attr.points]="tailPoints" fill="#334155" />
+
+        <!-- Head + problem text -->
+        <path [attr.d]="headPath" fill="#dc2626" />
+        <text text-anchor="middle" font-size="12.5" font-weight="700" fill="#ffffff">
+          <tspan *ngFor="let l of headLines" [attr.x]="l.x" [attr.y]="l.y">{{ l.text }}</tspan>
+        </text>
+
+        <!-- Category bones -->
+        <g *ngFor="let b of bones">
+          <!-- diagonal bone -->
+          <line [attr.x1]="b.x1" [attr.y1]="b.y1" [attr.x2]="b.x2" [attr.y2]="b.y2"
+                [attr.stroke]="b.color" stroke-width="3" stroke-linecap="round" />
+          <!-- junction dot on spine -->
+          <circle [attr.cx]="b.x1" [attr.cy]="b.y1" r="5" [attr.fill]="b.color" />
+
+          <!-- category label box -->
+          <rect [attr.x]="b.boxX" [attr.y]="b.boxY" [attr.width]="b.boxW" [attr.height]="b.boxH"
+                rx="8" [attr.fill]="b.color" />
+          <text [attr.x]="b.labelX" [attr.y]="b.labelY" text-anchor="middle"
+                font-size="13" font-weight="700" fill="#ffffff">{{ b.name }}</text>
+
+          <!-- causes (single line each, full text on hover) -->
+          <g *ngFor="let c of b.causes">
+            <title>{{ c.fullText }}</title>
+            <line [attr.x1]="c.x1" [attr.y1]="c.y1" [attr.x2]="c.x2" [attr.y2]="c.y2"
+                  stroke="#64748b" stroke-width="1.6" />
+            <circle [attr.cx]="c.x1" [attr.cy]="c.y1" r="3" [attr.fill]="b.color" />
+            <text [attr.x]="c.labelX" [attr.y]="c.labelY" text-anchor="end"
+                  font-size="12" font-weight="600" fill="#334155">{{ c.label }}</text>
+          </g>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Summary strip -->
+    <div class="mt-3 flex gap-5 px-1 text-xs font-medium text-slate-400">
+      <span>{{ bones.length }} Categories</span>
+      <span>{{ totalCauses }} Causes</span>
+    </div>
+  </div>
+</div>
