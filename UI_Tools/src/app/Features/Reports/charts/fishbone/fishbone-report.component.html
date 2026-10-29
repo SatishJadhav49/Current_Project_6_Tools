@@ -1,0 +1,164 @@
+<div class="flex flex-col gap-4 xl:flex-row">
+  <!-- ************************************ Settings Panel ************************************ -->
+  <aside class="w-full shrink-0 xl:w-80">
+    <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <button type="button" (click)="showSettings = !showSettings"
+              class="flex w-full items-center justify-between px-4 py-3 text-left">
+        <span class="text-sm font-bold text-slate-800">Fishbone Settings</span>
+        <svg class="h-4 w-4 text-slate-400 transition-transform" [class.rotate-180]="showSettings"
+             fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      @if (showSettings) {
+        <fieldset [disabled]="readonly" class="space-y-4 border-t border-slate-100 px-4 py-4">
+          <div>
+            <label class="mb-1 block text-xs font-semibold text-slate-500">Problem / Effect (fish head)</label>
+            <textarea [(ngModel)]="cfg.problem" (ngModelChange)="onConfigChanged()" rows="2" maxlength="120"
+                      placeholder="e.g. High paint defect rate on body line"
+                      class="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-50"></textarea>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3">
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Category column (main bones)</label>
+              <select [(ngModel)]="cfg.categoryColumn" (ngModelChange)="cfg.selectedCategories = []; onConfigChanged()"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                <option value="" disabled>Select column</option>
+                @for (c of columns; track c.key) {
+                  <option [value]="c.key">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Cause column</label>
+              <select [(ngModel)]="cfg.causeColumn" (ngModelChange)="onConfigChanged()"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                <option value="" disabled>Select column</option>
+                @for (c of columns; track c.key) {
+                  <option [value]="c.key">{{ c.name }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Weight / count column</label>
+              <select [(ngModel)]="cfg.countColumn" (ngModelChange)="onConfigChanged()"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                <option value="">None — count rows</option>
+                @for (c of numericColumns; track c.key) {
+                  <option [value]="c.key">{{ c.name }} (sum)</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Category order</label>
+              <select [(ngModel)]="cfg.categorySort" (ngModelChange)="onConfigChanged()"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                <option value="dataset">As in data</option>
+                <option value="impact">Highest first</option>
+                <option value="name">A → Z</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold text-slate-500">Cause order</label>
+              <select [(ngModel)]="cfg.causeSort" (ngModelChange)="onConfigChanged()"
+                      class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-slate-50">
+                <option value="impact">Highest first</option>
+                <option value="dataset">As in data</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" [(ngModel)]="cfg.showCounts" (ngModelChange)="onConfigChanged()"
+                   class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            Show counts next to causes
+          </label>
+
+          <!-- Category picker -->
+          @if (result.allCategories.length) {
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">
+                  Categories on diagram ({{ result.data.categories.length }}/{{ limits.MAX_CATEGORIES }})
+                </span>
+                @if (cfg.selectedCategories.length) {
+                  <button type="button" (click)="resetCategories()"
+                          class="text-xs font-semibold text-blue-600 hover:underline disabled:text-slate-400">Auto</button>
+                }
+              </div>
+              <ul class="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-1.5">
+                @for (cat of result.allCategories; track cat.name) {
+                  <li>
+                    <label class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50"
+                           [class.opacity-50]="!isSelected(cat.name) && !canSelectMore()">
+                      <input type="checkbox" [checked]="isSelected(cat.name)"
+                             [disabled]="readonly || (!isSelected(cat.name) && !canSelectMore())"
+                             (change)="toggleCategory(cat.name)"
+                             class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                      <span class="flex-1 truncate text-slate-700" [title]="cat.name">{{ cat.name }}</span>
+                      <span class="rounded-full bg-slate-100 px-2 text-[11px] font-semibold text-slate-500">{{ cat.causes.length }}</span>
+                    </label>
+                  </li>
+                }
+              </ul>
+              <p class="mt-1 text-[11px] text-slate-400">Max {{ limits.MAX_CATEGORIES }} bones and {{ limits.MAX_CAUSES_PER_CATEGORY }} causes per bone keep the diagram readable.</p>
+            </div>
+          }
+        </fieldset>
+      }
+    </div>
+  </aside>
+
+  <!-- ************************************ Diagram ************************************ -->
+  <section class="min-w-0 flex-1">
+    @if (!mappingReady) {
+      <div class="flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
+        <p class="text-sm font-semibold text-slate-700">Map your columns to draw the fishbone</p>
+        <p class="mt-1 text-sm text-slate-500">Pick two different columns: one for categories (Man, Machine, Method…) and one for causes.</p>
+      </div>
+    } @else if (!result.data.categories.length) {
+      <div class="flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
+        <p class="text-sm font-semibold text-slate-700">No causes to show</p>
+        <p class="mt-1 text-sm text-slate-500">The selected columns are empty for the current rows. Check the column mapping or the report filters.</p>
+      </div>
+    } @else {
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm md:p-4">
+        <app-fishbone-diagram [data]="result.data"
+                              [countLabel]="!cfg.showCounts ? 'none' : cfg.countColumn ? 'all' : 'repeats'" />
+      </div>
+
+      <!-- Summary strip -->
+      <div class="mt-3 flex flex-wrap items-center gap-2 px-1">
+        @for (cat of result.data.categories; track cat.name; let i = $index) {
+          <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+                [style.background]="colors[i % colors.length]">
+            {{ cat.name }}
+            <span class="rounded-full bg-white/25 px-1.5 text-[10px] leading-4">{{ +cat.total.toFixed(2) }}</span>
+          </span>
+        }
+        <span class="ml-auto text-xs font-medium text-slate-400">
+          {{ result.data.categories.length }} categories · {{ drawnCauses }} causes · {{ rows.length }} rows
+        </span>
+      </div>
+
+      @if (result.hiddenCategories || result.hiddenCauses || result.skippedRows) {
+        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+          @if (result.hiddenCategories) {
+            <div>{{ result.hiddenCategories }} more categor{{ result.hiddenCategories === 1 ? 'y is' : 'ies are' }} not drawn — choose which ones to show in the settings.</div>
+          }
+          @if (result.hiddenCauses) {
+            <div>{{ result.hiddenCauses }} lower-ranked cause(s) are not drawn (max {{ limits.MAX_CAUSES_PER_CATEGORY }} per category). All causes are included in the Excel / PDF export.</div>
+          }
+          @if (result.skippedRows) {
+            <div>{{ result.skippedRows }} row(s) skipped because category or cause is empty.</div>
+          }
+        </div>
+      }
+    }
+  </section>
+</div>

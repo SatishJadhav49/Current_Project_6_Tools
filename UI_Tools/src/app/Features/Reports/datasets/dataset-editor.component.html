@@ -1,0 +1,238 @@
+<div class="mx-auto max-w-[1520px] space-y-5 p-2 md:p-4">
+  <!-- ************************************ Header ************************************ -->
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <a routerLink="/reports/datasets" class="text-xs font-semibold text-slate-500 hover:text-slate-800">← My Datasets</a>
+      <h1 class="mt-1 text-xl font-bold text-slate-800">{{ datasetId ? 'Edit Dataset' : 'New Dataset' }}</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" (click)="cancel()"
+              class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+      <button type="button" (click)="save()" [disabled]="saving || mode !== 'grid'"
+              class="rounded-lg bg-[#e31837] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#c41530] disabled:cursor-not-allowed disabled:bg-slate-300">
+        {{ saving ? 'Saving...' : 'Save Dataset' }}
+      </button>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="h-64 animate-pulse rounded-xl bg-white"></div>
+  } @else {
+    <!-- ************************************ Details ************************************ -->
+    <div class="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
+      <div>
+        <label class="mb-1 block text-xs font-semibold text-slate-500">Dataset name <span class="text-red-500">*</span></label>
+        <input [(ngModel)]="name" (ngModelChange)="dirty = true" maxlength="150" placeholder="e.g. Paint shop defects — Oct 2026"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label class="mb-1 block text-xs font-semibold text-slate-500">Description</label>
+        <input [(ngModel)]="description" (ngModelChange)="dirty = true" maxlength="500" placeholder="What is this data about? (optional)"
+               class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+      </div>
+    </div>
+
+    <input #fileInput type="file" accept=".xlsx,.csv,.txt" class="hidden" (change)="onFileSelected($event)" />
+
+    <!-- ************************************ Step: choose source ************************************ -->
+    @if (mode === 'choose') {
+      <div class="grid gap-4 lg:grid-cols-2">
+        <!-- Upload -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-800">Upload a file</h2>
+          <p class="mt-0.5 text-xs text-slate-500">Excel (.xlsx) or CSV, first row as column headers. Up to {{ limits.MAX_FILE_MB }} MB / {{ limits.MAX_ROWS | number }} rows.</p>
+          <div (click)="fileInput.click()" (dragover)="$event.preventDefault(); dragOver = true" (dragleave)="dragOver = false" (drop)="onDrop($event)"
+               class="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition"
+               [ngClass]="dragOver ? 'border-blue-500 bg-blue-50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'">
+            @if (parsing) {
+              <div class="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700"></div>
+              <p class="mt-3 text-sm text-slate-600">Reading file...</p>
+            } @else {
+              <svg class="h-10 w-10 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+              </svg>
+              <p class="mt-3 text-sm font-semibold text-slate-700">Drop your file here or <span class="text-blue-600">browse</span></p>
+              <p class="mt-1 text-xs text-slate-400">.xlsx · .csv</p>
+            }
+          </div>
+        </div>
+
+        <!-- Manual -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-sm font-bold text-slate-800">Enter data manually</h2>
+          <p class="mt-0.5 text-xs text-slate-500">Start from a template — you can rename, add or remove columns later. Tip: paste a block copied from Excel straight into the grid.</p>
+          <div class="mt-4 space-y-2">
+            @for (t of templates; track t.id) {
+              <button type="button" (click)="useTemplate(t)"
+                      class="flex w-full items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50">
+                <span>
+                  <span class="block text-sm font-semibold text-slate-800">{{ t.name }}</span>
+                  <span class="block text-xs text-slate-500">{{ t.hint }}</span>
+                </span>
+                <span class="text-slate-400">→</span>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ************************************ Step: import preview ************************************ -->
+    @if (mode === 'upload') {
+      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">Import preview</h2>
+            <p class="mt-0.5 text-xs text-slate-500">{{ pendingFile?.name }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-4">
+            @if (sheets.length > 1) {
+              <div>
+                <label class="mb-1 block text-xs font-semibold text-slate-500">Sheet</label>
+                <select [(ngModel)]="selectedSheet"
+                        class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none">
+                  @for (s of sheets; track $index) {
+                    <option [ngValue]="$index">{{ s.name }} ({{ s.matrix.length }} rows)</option>
+                  }
+                </select>
+              </div>
+            }
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" [(ngModel)]="firstRowIsHeader" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+              First row contains column names
+            </label>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+          <table class="min-w-full text-left text-xs">
+            <tbody>
+              @for (r of previewRows; track $index; let ri = $index) {
+                <tr class="border-t border-slate-100 first:border-0" [ngClass]="ri === 0 && firstRowIsHeader ? 'bg-slate-800 font-semibold text-white' : 'text-slate-700'">
+                  @for (ci of previewWidth; track ci) {
+                    <td class="max-w-[200px] truncate whitespace-nowrap px-3 py-2">{{ r[ci] ?? '' }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">Showing the first rows only.</p>
+
+        <div class="mt-4 flex justify-end gap-2">
+          <button type="button" (click)="cancelImport()"
+                  class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Back</button>
+          <button type="button" (click)="applyImport()"
+                  class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">Use this data</button>
+        </div>
+      </div>
+    }
+
+    <!-- ************************************ Step: grid editor ************************************ -->
+    @if (mode === 'grid') {
+      @if (importNotice) {
+        <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800">{{ importNotice }}</div>
+      }
+      @if (datasetId && reportCount) {
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          {{ reportCount }} report(s) are built on this dataset. Renaming is safe; removing columns they use will reset those report settings.
+        </div>
+      }
+
+      <div class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">Data</h2>
+            <p class="text-xs text-slate-500">
+              {{ rows.length | number }} rows · {{ columns.length }} columns
+              @if (sourceFileName) { · from {{ sourceFileName }} }
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" (click)="replaceFromFile(fileInput)"
+                    class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Replace from file</button>
+            <button type="button" (click)="addColumn()"
+                    class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">+ Column</button>
+            <button type="button" (click)="addRows(1)"
+                    class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">+ Row</button>
+            <button type="button" (click)="addRows(10)"
+                    class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">+ 10 Rows</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full border-collapse text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="w-12 border-b border-slate-200 px-2 py-2 text-xs font-semibold text-slate-400">#</th>
+                @for (c of columns; track c.key) {
+                  <th class="min-w-[170px] border-b border-l border-slate-200 p-2 align-top">
+                    <div class="flex items-center gap-1">
+                      <input [(ngModel)]="c.name" (ngModelChange)="dirty = true" maxlength="60" placeholder="Column name"
+                             class="w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-xs font-bold text-slate-800 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none" />
+                      <button type="button" (click)="removeColumn(c)" title="Remove column"
+                              class="shrink-0 rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-500">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                      </button>
+                    </div>
+                    <select [(ngModel)]="c.type" (ngModelChange)="dirty = true"
+                            class="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 focus:border-blue-500 focus:outline-none">
+                      <option value="text">Text</option>
+                      <option value="number">Number</option>
+                      <option value="date">Date</option>
+                    </select>
+                  </th>
+                }
+                <th class="w-10 border-b border-slate-200"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of pageRows; track trackByIndex($index); let ri = $index) {
+                <tr class="group hover:bg-slate-50/60">
+                  <td class="border-b border-slate-100 px-2 text-center text-xs text-slate-400">{{ pageOffset + ri + 1 }}</td>
+                  @for (c of columns; track c.key; let ci = $index) {
+                    <td class="border-b border-l border-slate-100 p-0">
+                      <input [ngModel]="format(row[c.key])" (ngModelChange)="setCell(row, c.key, $event)"
+                             (paste)="onPaste($event, pageOffset + ri, ci)"
+                             type="text" [attr.inputmode]="c.type === 'number' ? 'decimal' : null"
+                             [placeholder]="c.type === 'date' ? 'yyyy-mm-dd' : ''"
+                             class="w-full border-0 bg-transparent px-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 focus:bg-blue-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-500"
+                             [class.text-right]="c.type === 'number'"
+                             [class.bg-red-50]="isInvalid(row[c.key], c.type)"
+                             [title]="isInvalid(row[c.key], c.type) ? 'Not a valid ' + c.type + ' — it will be saved as text' : ''" />
+                    </td>
+                  }
+                  <td class="border-b border-slate-100 text-center">
+                    <button type="button" (click)="removeRow(pageOffset + ri)" title="Remove row"
+                            class="rounded p-1 text-slate-300 opacity-0 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100">
+                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td [attr.colspan]="columns.length + 2" class="px-4 py-10 text-center text-sm text-slate-400">
+                    No rows yet. <button type="button" (click)="addRows(5)" class="font-semibold text-blue-600 hover:underline">Add 5 rows</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">
+          <span>Empty rows are removed when you save. Values that don't match the column type are highlighted.</span>
+          @if (totalPages > 1) {
+            <div class="flex items-center gap-2">
+              <span>Page {{ page }} of {{ totalPages }}</span>
+              <button type="button" (click)="go(page - 1)" [disabled]="page === 1"
+                      class="rounded-md border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 disabled:opacity-40">Prev</button>
+              <button type="button" (click)="go(page + 1)" [disabled]="page === totalPages"
+                      class="rounded-md border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 disabled:opacity-40">Next</button>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

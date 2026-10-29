@@ -27,6 +27,14 @@ export const routes: Routes = [
       ),
     canActivate: [AuthGuard], // Require both auth and menu access
   },
+  {
+    path: 'reports',
+    loadChildren: () =>
+      import('./Features/Reports/reports.routes').then(
+        (m) => m.ReportRoutes
+      ),
+    canActivate: [AuthGuard],
+  },
   //Wildcard route - must be last
   { path: '**', component: PlaceholderComponent },
 ];
