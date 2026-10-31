@@ -82,6 +82,10 @@ export const CHART_DEFINITIONS: ChartDefinition[] = [
     slug: 'pareto',
     icon: 'M4 20V8h3v12M9 20v-9h3v9M14 20v-6h3v6M19 20v-3h2M4 6c5 0 10 1 17 6',
     color: '#059669',
+    loadComponent: () =>
+      import('../charts/pareto/pareto-report.component').then((m) => m.ParetoReportComponent),
+    defaultConfig: (columns) =>
+      import('../charts/pareto/pareto.model').then((m) => m.defaultParetoConfig(columns)),
   },
   {
     code: 'HISTOGRAM',

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, ElementRef, Input, OnChanges, ViewChild } from '@angular/core';
 import { BOXPLOT_LIMITS, BoxStats, formatStat } from './boxplot.model';
+import { formatTick, niceScale } from '../../shared/chart-axis.util';
 
 //********************************************** Render Models Start **********************************************//
 // Internal, computed geometry — only the inputs drive the diagram
@@ -320,27 +321,6 @@ export class BoxPlotDiagramComponent implements OnChanges {
 }
 
 //********************************************** Helpers Start **********************************************//
-/** "Nice" axis bounds and step (1, 2, 2.5, 5 × 10^n) */
-function niceScale(lo: number, hi: number, maxTicks: number): { min: number; max: number; step: number } {
-  const range = niceNumber(hi - lo, false);
-  const step = niceNumber(range / (maxTicks - 1), true);
-  return { min: Math.floor(lo / step) * step, max: Math.ceil(hi / step) * step, step };
-}
-
-function niceNumber(range: number, round: boolean): number {
-  const exponent = Math.floor(Math.log10(range));
-  const fraction = range / 10 ** exponent;
-  let nice: number;
-  if (round) nice = fraction < 1.5 ? 1 : fraction < 2.25 ? 2 : fraction < 3.5 ? 2.5 : fraction < 7.5 ? 5 : 10;
-  else nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
-  return nice * 10 ** exponent;
-}
-
-function formatTick(value: number, decimals: number): string {
-  const fixed = Math.abs(value) < 1e-9 ? 0 : value;
-  return fixed.toLocaleString('en-IN', { minimumFractionDigits: Math.min(decimals, 6), maximumFractionDigits: Math.min(decimals, 6) });
-}
-
 /** Deterministic jitter in [-1, 1] so exports and redraws look the same */
 function jitter(group: number, index: number): number {
   const s = Math.sin((group + 1) * 12.9898 + (index + 1) * 78.233) * 43758.5453;
